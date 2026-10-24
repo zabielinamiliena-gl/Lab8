@@ -392,7 +392,7 @@ namespace Variant1_OrderProcessing
         }
     }
 
-    class Program
+    class Task3
     {
         static void Main()
         {
