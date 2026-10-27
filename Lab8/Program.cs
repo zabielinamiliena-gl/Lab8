@@ -1,410 +1,100 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace Variant1_OrderProcessing
+< variants language = "C#" >
+< variant number = "1" >
+< domain_description > Інтернет - магазин електроніки та побутової техніки.</domain_description>
+<code_purpose>Обробка замовлення клієнта — перевірка коректності даних, розрахунок загальної вартості з урахуванням накопичувальної знижки та ПДВ, формування текстового рахунку, збереження замовлення у файл та відправка email-сповіщення.</code_purpose>
+<code>
+<![CDATA[ namespace Variant1_OrderProcessing
 {
+    // Опис предметної області: Інтернет-магазин електроніки та побутової техніки.
+    // Завдання коду: Обробка замовлення клієнта — перевірка коректності даних, розрахунок загальної вартості з урахуванням накопичувальної знижки та ПДВ, формування текстового рахунку, збереження замовлення у файл та відправка email-сповіщення.
+
     public class Customer
     {
-        public int Id { get; private set; }
-        public string Name { get; private set; }
-        public string Email { get; private set; }
-        public string Type { get; private set; }
-        public decimal TotalSpent { get; private set; }
-
-        public decimal DiscountRate
-        {
-            get
-            {
-                if (Type == "VIP")
-                    return 0.15m;
-                if (Type == "Regular")
-                    return 0.05m;
-                return 0m;
-            }
-        }
-
-        private Customer(int id, string name, string email, string type, decimal totalSpent)
-        {
-            Id = id;
-            Name = name;
-            Email = email;
-            Type = type;
-            TotalSpent = totalSpent;
-        }
-
-        public static Customer Create(int id, string name, string email, string type, decimal totalSpent)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Ім'я клієнта не може бути порожнім.");
-            if (string.IsNullOrWhiteSpace(email))
-                throw new ArgumentException("Email не може бути порожнім.");
-            if (type != "New" && type != "Regular" && type != "VIP")
-                throw new ArgumentException("Тип клієнта має бути New, Regular або VIP.");
-            if (totalSpent < 0)
-                throw new ArgumentException("Накопичена сума не може бути від'ємною.");
-
-            return new Customer(id, name, email, type, totalSpent);
-        }
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Type { get; set; } // "Regular", "VIP", "New"
+        public decimal TotalSpent { get; set; }
     }
 
     public class Product
     {
-        public int Id { get; private set; }
-        public string Name { get; private set; }
-        public decimal Price { get; private set; }
-        public string Category { get; private set; }
-
-        private Product(int id, string name, decimal price, string category)
-        {
-            Id = id;
-            Name = name;
-            Price = price;
-            Category = category;
-        }
-
-        public static Product Create(int id, string name, decimal price, string category)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Назва товару не може бути порожньою.");
-            if (price < 0)
-                throw new ArgumentException("Ціна не може бути від'ємною.");
-
-            return new Product(id, name, price, category);
-        }
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public decimal Price { get; set; }
+        public string Category { get; set; }
     }
 
     public class OrderItem
     {
-        public Product Product { get; private set; }
-        public int Quantity { get; private set; }
-        public decimal LineTotal => Product.Price * Quantity;
-
-        private OrderItem(Product product, int quantity)
-        {
-            Product = product;
-            Quantity = quantity;
-        }
-
-        public static OrderItem Create(Product product, int quantity)
-        {
-            if (product == null)
-                throw new ArgumentException("Товар позиції не може бути порожнім.");
-            if (quantity <= 0)
-                throw new ArgumentException("Кількість має бути більшою за нуль.");
-
-            return new OrderItem(product, quantity);
-        }
+        public Product Product { get; set; }
+        public int Quantity { get; set; }
     }
 
     public class Order
     {
-        private readonly List<OrderItem> items;
-
-        public int Id { get; private set; }
-        public Customer Customer { get; private set; }
-        public IReadOnlyCollection<OrderItem> Items => items.AsReadOnly();
-        public decimal TotalAmount => SumLines();
-        public decimal DiscountAmount => TotalAmount * Customer.DiscountRate;
-        public decimal TaxAmount => (TotalAmount - DiscountAmount) * 0.20m;
-        public decimal FinalAmount => TotalAmount - DiscountAmount + TaxAmount;
-        public string Status { get; private set; }
-
-        private Order(int id, Customer customer, List<OrderItem> createdItems)
-        {
-            Id = id;
-            Customer = customer;
-            items = new List<OrderItem>(createdItems);
-            Status = "Processed";
-        }
-
-        public static Order Create(int id, Customer customer, params (Product Product, int Quantity)[] lines)
-        {
-            if (customer == null)
-                throw new ArgumentException("Клієнт не може бути порожнім.");
-            if (lines == null || lines.Length == 0)
-                throw new ArgumentException("Замовлення не може бути порожнім.");
-
-            List<OrderItem> createdItems = new List<OrderItem>();
-            foreach ((Product Product, int Quantity) line in lines)
-                createdItems.Add(OrderItem.Create(line.Product, line.Quantity));
-
-            return new Order(id, customer, createdItems);
-        }
-
-        private decimal SumLines()
-        {
-            decimal sum = 0m;
-            foreach (OrderItem item in items)
-                sum += item.LineTotal;
-            return sum;
-        }
+        public int Id { get; set; }
+        public Customer Customer { get; set; }
+        public List<OrderItem> Items { get; set; } = new List<OrderItem>();
+        public decimal TotalAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal FinalAmount { get; set; }
+        public string Status { get; set; }
     }
 
-    public class PlaceOrderRequest
+    public class LegacyOrderProcessor
     {
-        public string Name { get; }
-        public string CustomerType { get; }
-        public int LaptopQuantity { get; }
-        public int MouseQuantity { get; }
-
-        public PlaceOrderRequest(string name, string customerType, int laptopQuantity, int mouseQuantity)
+        public void ProcessConsoleOrder()
         {
-            Name = name ?? "";
-            CustomerType = customerType ?? "";
-            LaptopQuantity = laptopQuantity;
-            MouseQuantity = mouseQuantity;
-        }
-    }
+            Console.WriteLine("=== Оформлення замовлення ===");
+            Console.Write("Введіть ім'я клієнта: ");
+            string name = Console.ReadLine();
+            Console.Write("Введіть тип клієнта (New/Regular/VIP): ");
+            string customerType = Console.ReadLine();
 
-    public class OrderResult
-    {
-        public int Id { get; }
-        public string CustomerName { get; }
-        public decimal TotalAmount { get; }
-        public decimal DiscountAmount { get; }
-        public decimal TaxAmount { get; }
-        public decimal FinalAmount { get; }
-        public string Email { get; }
-        public string SavedFile { get; }
+            Customer customer = new Customer { Id = 1, Name = name, Email = "client@example.com", Type = customerType, TotalSpent = 15000m };
+            Order order = new Order { Id = 101, Customer = customer, Status = "New" };
 
-        public OrderResult(Order order, string savedFile)
-        {
-            Id = order.Id;
-            CustomerName = order.Customer.Name;
-            TotalAmount = order.TotalAmount;
-            DiscountAmount = order.DiscountAmount;
-            TaxAmount = order.TaxAmount;
-            FinalAmount = order.FinalAmount;
-            Email = order.Customer.Email;
-            SavedFile = savedFile;
-        }
-    }
+            Product p1 = new Product { Id = 1, Name = "Ноутбук", Price = 30000m, Category = "Electronics" };
+            Product p2 = new Product { Id = 2, Name = "Мишка", Price = 800m, Category = "Accessories" };
 
-    public interface IPlaceOrderHandler
-    {
-        OrderResult Handle(PlaceOrderRequest request);
-    }
+            order.Items.Add(new OrderItem { Product = p1, Quantity = 1 });
+            order.Items.Add(new OrderItem { Product = p2, Quantity = 2 });
 
-    public interface IProductRepository
-    {
-        Product GetById(int id);
-    }
-
-    public interface IOrderRepository
-    {
-        int NextId();
-        string Save(Order order);
-    }
-
-    public interface IAuditLogger
-    {
-        void Log(string message);
-    }
-
-    public class ConsoleCommandParser
-    {
-        public PlaceOrderRequest? ParseOrder(string name, string customerType, string laptopText, string mouseText)
-        {
-            if (!int.TryParse(laptopText, out int laptops) || !int.TryParse(mouseText, out int mice))
-                return null;
-
-            return new PlaceOrderRequest(name, customerType, laptops, mice);
-        }
-    }
-
-    public class PolicyValidator
-    {
-        public void Validate(PlaceOrderRequest request)
-        {
-            if (request == null)
-                throw new ArgumentException("Запит порожній.");
-            if (string.IsNullOrWhiteSpace(request.Name))
-                throw new ArgumentException("Ім'я клієнта не може бути порожнім.");
-            if (request.CustomerType != "New" && request.CustomerType != "Regular" && request.CustomerType != "VIP")
-                throw new ArgumentException("Тип клієнта має бути New, Regular або VIP.");
-            if (request.LaptopQuantity <= 0 || request.MouseQuantity <= 0)
-                throw new ArgumentException("Кількість має бути більшою за нуль.");
-        }
-    }
-
-    public class CatalogProductRepository : IProductRepository
-    {
-        private readonly List<Product> products = new List<Product>
-        {
-            Product.Create(1, "Ноутбук", 30000m, "Electronics"),
-            Product.Create(2, "Мишка", 800m, "Accessories")
-        };
-
-        public Product GetById(int id)
-        {
-            foreach (Product product in products)
+            decimal subtotal = 0m;
+            foreach (var item in order.Items)
             {
-                if (product.Id == id)
-                    return product;
+                subtotal += item.Product.Price * item.Quantity;
             }
+            order.TotalAmount = subtotal;
 
-            throw new ArgumentException("Товар не знайдено.");
-        }
-    }
-
-    public class FileOrderRepository : IOrderRepository
-    {
-        private readonly string path;
-
-        public FileOrderRepository(string path)
-        {
-            this.path = path;
-        }
-
-        public int NextId()
-        {
-            if (!File.Exists(path))
-                return 101;
-
-            return 101 + File.ReadAllLines(path).Length;
-        }
-
-        public string Save(Order order)
-        {
-            string line = order.Id + ";" + order.Customer.Name + ";" + order.FinalAmount;
-            File.AppendAllText(path, line + Environment.NewLine);
-            return path;
-        }
-    }
-
-    public class FileAuditLogger : IAuditLogger
-    {
-        private readonly string path;
-
-        public FileAuditLogger(string path)
-        {
-            this.path = path;
-        }
-
-        public void Log(string message)
-        {
-            string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " - " + message;
-            File.AppendAllText(path, line + Environment.NewLine);
-        }
-    }
-
-    public class OrderController : IPlaceOrderHandler
-    {
-        private readonly PolicyValidator validator;
-        private readonly IProductRepository products;
-        private readonly IOrderRepository orders;
-        private readonly IAuditLogger logger;
-
-        public OrderController(PolicyValidator validator, IProductRepository products, IOrderRepository orders, IAuditLogger logger)
-        {
-            this.validator = validator;
-            this.products = products;
-            this.orders = orders;
-            this.logger = logger;
-        }
-
-        public OrderResult Handle(PlaceOrderRequest request)
-        {
-            validator.Validate(request);
-
-            Customer customer = Customer.Create(1, request.Name, "client@example.com", request.CustomerType, 15000m);
-            Product laptop = products.GetById(1);
-            Product mouse = products.GetById(2);
-            Order order = Order.Create(
-                orders.NextId(),
-                customer,
-                (laptop, request.LaptopQuantity),
-                (mouse, request.MouseQuantity));
-
-            string savedFile = orders.Save(order);
-            logger.Log("Успішно оброблено замовлення " + order.Id);
-            return new OrderResult(order, savedFile);
-        }
-    }
-
-    public class OrderConsole
-    {
-        private readonly ConsoleCommandParser parser;
-        private readonly IPlaceOrderHandler handler;
-
-        public OrderConsole(ConsoleCommandParser parser, IPlaceOrderHandler handler)
-        {
-            this.parser = parser;
-            this.handler = handler;
-        }
-
-        public void Run()
-        {
-            bool running = true;
-            while (running)
+            decimal discountRate = 0m;
+            if (order.Customer.Type == "VIP")
             {
-                Console.WriteLine("=== Оформлення замовлення ===");
-                Console.WriteLine("1 - нове замовлення");
-                Console.WriteLine("0 - вихід");
-                Console.Write("Команда: ");
-                string command = Console.ReadLine() ?? "";
-
-                if (command == "0")
-                {
-                    running = false;
-                    continue;
-                }
-
-                if (command != "1")
-                {
-                    Console.WriteLine("Невідома команда.");
-                    continue;
-                }
-
-                Console.Write("Введіть ім'я клієнта: ");
-                string name = Console.ReadLine() ?? "";
-                Console.Write("Введіть тип клієнта (New/Regular/VIP): ");
-                string customerType = Console.ReadLine() ?? "";
-                Console.Write("Кількість ноутбуків: ");
-                string laptops = Console.ReadLine() ?? "";
-                Console.Write("Кількість мишок: ");
-                string mice = Console.ReadLine() ?? "";
-
-                PlaceOrderRequest? request = parser.ParseOrder(name, customerType, laptops, mice);
-                if (request == null)
-                {
-                    Console.WriteLine("Кількість має бути цілим числом.");
-                    continue;
-                }
-
-                try
-                {
-                    OrderResult result = handler.Handle(request);
-                    Console.WriteLine("Замовлення #" + result.Id + " для " + result.CustomerName);
-                    Console.WriteLine("Сума: " + result.TotalAmount + " грн");
-                    Console.WriteLine("Знижка: " + result.DiscountAmount + " грн");
-                    Console.WriteLine("ПДВ: " + result.TaxAmount + " грн");
-                    Console.WriteLine("До сплати: " + result.FinalAmount + " грн");
-                    Console.WriteLine("[БД] Замовлення #" + result.Id + " збережено у файл " + result.SavedFile + ".");
-                    Console.WriteLine("[Email] Повідомлення відправлено на " + result.Email);
-                }
-                catch (ArgumentException error)
-                {
-                    Console.WriteLine(error.Message);
-                }
+                discountRate = 0.15m;
             }
+            else if (order.Customer.Type == "Regular")
+            {
+                discountRate = 0.05m;
+            }
+            else if (order.Customer.Type == "New")
+            {
+                discountRate = 0.0m;
+            }
+            order.DiscountAmount = order.TotalAmount * discountRate;
+
+            order.TaxAmount = (order.TotalAmount - order.DiscountAmount) * 0.20m;
+            order.FinalAmount = order.TotalAmount - order.DiscountAmount + order.TaxAmount;
+            order.Status = "Processed";
+
+            string receipt = $"Замовлення #{order.Id} для {order.Customer.Name}\nСума: {order.TotalAmount} грн\nЗнижка: {order.DiscountAmount} грн\nПДВ: {order.TaxAmount} грн\nДо сплати: {order.FinalAmount} грн";
+            Console.WriteLine(receipt);
+
+            Console.WriteLine($"[БД] Замовлення #{order.Id} збережено у файл orders.txt.");
+            Console.WriteLine($"[Email] Повідомлення відправлено на {order.Customer.Email}");
         }
     }
-
-    class Program
-    {
-        static void Main()
-        {
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-
-            IPlaceOrderHandler handler = new OrderController(
-                new PolicyValidator(),
-                new CatalogProductRepository(),
-                new FileOrderRepository("orders.txt"),
-                new FileAuditLogger("audit.log"));
-
-            new OrderConsole(new ConsoleCommandParser(), handler).Run();
-        }
-    }
-}
+} ]]>
